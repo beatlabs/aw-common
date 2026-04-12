@@ -22,11 +22,13 @@ tools:
   bash:
     - "*"
 safe-outputs:
-  create-discussion:
-    category: "reports"
+  create-issue:
+    title-prefix: "[org-health]"
+    labels: ["report"]
     max: 1
-    close-older-discussions: true
+    close-older-issues: true
   upload-asset:
+    max: 5
 timeout-minutes: 60
 strict: true
 features:
@@ -43,25 +45,28 @@ imports:
 source: github/gh-aw/.github/workflows/org-health-report.md@852cb06ad52958b402ed982b69957ffc57ca0619
 ---
 
-# Organization Health Report
+# Repository Health Report
 
-You are the **Organization Health Report Agent** - an expert system that analyzes the health of all public repositories in the GitHub organization and produces comprehensive metrics and actionable insights.
+You are the **Repository Health Report Agent**. Analyze the health of exactly these two repositories and produce a focused comparative report:
+
+- `beatlabs/patron`
+- `beatlabs/harvester`
 
 ## Mission
 
-Generate an organization-wide health report that:
-- Analyzes issues and pull requests across all public repositories
-- Produces clear volume metrics (open/closed counts, trends)
-- Identifies top active repositories and authors
-- Highlights PRs and issues needing attention
-- Presents findings as a readable Markdown report with tables and commentary
+Generate a health report that:
+- Analyzes issues and pull requests for `beatlabs/patron` and `beatlabs/harvester` only
+- Produces clear volume metrics and 7-day / 30-day trends
+- Compares repository health, responsiveness, and relative activity between the two repositories
+- Highlights issues and PRs needing attention
+- Presents findings as a readable Markdown issue with tables, charts, and concise commentary
 
 ## Current Context
 
-- **Organization**: github
-- **Repository Filter**: public, non-archived repositories only
+- **Repositories**: `beatlabs/patron`, `beatlabs/harvester`
 - **Report Period**: Last 7 and 30 days for trends
-- **Target URL**: https://github.com/orgs/github/repositories?q=visibility%3Apublic+archived%3Afalse
+- **Output Mode**: GitHub issue via safe-output
+- **Persistence**: Use cache-memory for intermediate data, trend snapshots, and retry safety
 
 ## Data Collection Process
 
@@ -71,235 +76,220 @@ Create working directories for data storage and processing:
 
 ```bash
 mkdir -p /tmp/gh-aw/org-health
-mkdir -p /tmp/gh-aw/org-health/repos
 mkdir -p /tmp/gh-aw/org-health/issues
 mkdir -p /tmp/gh-aw/org-health/prs
 mkdir -p /tmp/gh-aw/python/data
 mkdir -p /tmp/gh-aw/cache-memory/org-health
 ```
 
-### Phase 1: Discover Public Repositories
+### Phase 1: Collect Issues Data
 
-**Goal**: Get a list of all public, non-archived repositories in the github organization.
-
-1. **Use GitHub MCP search_repositories tool** to find repositories:
-   - Query: `org:github archived:false`
-   - Fetch repositories in batches with pagination
-   - Add 2-3 second delays between pages to avoid rate limiting
-   - Save repository list to `/tmp/gh-aw/org-health/repos/repositories.json`
-
-2. **Extract repository names** for subsequent queries:
-   ```bash
-   jq '[.[] | {name: .name, full_name: .full_name, stars: .stargazers_count, open_issues: .open_issues_count}]' \
-     /tmp/gh-aw/org-health/repos/repositories.json > /tmp/gh-aw/org-health/repos/repo_list.json
-   ```
-
-3. **Log progress**:
-   ```bash
-   echo "Found $(jq 'length' /tmp/gh-aw/org-health/repos/repo_list.json) public repositories"
-   ```
-
-### Phase 2: Collect Issues Data
-
-**Goal**: Gather issue data from all discovered repositories.
+**Goal**: Gather issue data for `beatlabs/patron` and `beatlabs/harvester`.
 
 **IMPORTANT**: Add delays to prevent rate limiting.
 
-1. **For each repository** (or a representative sample if too many):
-   - Use the `search_issues` tool with query: `repo:github/{repo_name} is:issue`
-   - Collect: state, created date, closed date, author, labels, assignees, comments count
-   - Add **5 second delay** between repository queries
-   - Save to individual JSON files: `/tmp/gh-aw/org-health/issues/{repo_name}.json`
+1. **Query each repository individually**:
+   - Use the `search_issues` tool with query: `repo:beatlabs/patron is:issue`
+   - Use the `search_issues` tool with query: `repo:beatlabs/harvester is:issue`
+   - Collect: state, created date, updated date, closed date, author, labels, assignees, comments count, URL, repository name
+   - Add a **5 second delay** between repository queries
+   - Save results to:
+     - `/tmp/gh-aw/org-health/issues/patron.json`
+     - `/tmp/gh-aw/org-health/issues/harvester.json`
 
-2. **Alternative approach for large orgs**: Use organization-wide search:
-   - Query: `org:github is:issue created:>=YYYY-MM-DD` for last 30 days
-   - Query: `org:github is:issue updated:>=YYYY-MM-DD` for recent activity
-   - Paginate with delays between pages (3-5 seconds)
-
-3. **Aggregate data**:
+2. **Aggregate data**:
    ```bash
-   jq -s 'add' /tmp/gh-aw/org-health/issues/*.json > /tmp/gh-aw/org-health/all_issues.json
+   jq -s 'add' /tmp/gh-aw/org-health/issues/patron.json /tmp/gh-aw/org-health/issues/harvester.json > /tmp/gh-aw/org-health/all_issues.json
    ```
 
-### Phase 3: Collect Pull Requests Data
+3. **Persist key snapshots** in cache-memory for retries and month-over-month trend continuity.
 
-**Goal**: Gather PR data from all discovered repositories.
+### Phase 2: Collect Pull Requests Data
+
+**Goal**: Gather PR data for `beatlabs/patron` and `beatlabs/harvester`.
 
 **IMPORTANT**: Add delays to prevent rate limiting.
 
-1. **For each repository** (or org-wide search):
-   - Use the `search_pull_requests` tool with query: `repo:github/{repo_name} is:pr`
-   - Collect: state, created date, closed date, merged status, author, comments count
-   - Add **5 second delay** between repository queries
-   - Save to individual JSON files: `/tmp/gh-aw/org-health/prs/{repo_name}.json`
+1. **Query each repository individually**:
+   - Use the `search_pull_requests` tool with query: `repo:beatlabs/patron is:pr`
+   - Use the `search_pull_requests` tool with query: `repo:beatlabs/harvester is:pr`
+   - Collect: state, created date, updated date, closed date, merged status, author, comments count, URL, repository name
+   - Add a **5 second delay** between repository queries
+   - Save results to:
+     - `/tmp/gh-aw/org-health/prs/patron.json`
+     - `/tmp/gh-aw/org-health/prs/harvester.json`
 
-2. **Alternative approach for large orgs**: Use organization-wide search:
-   - Query: `org:github is:pr created:>=YYYY-MM-DD` for last 30 days
-   - Query: `org:github is:pr updated:>=YYYY-MM-DD` for recent activity
-   - Paginate with delays between pages (3-5 seconds)
-
-3. **Aggregate data**:
+2. **Aggregate data**:
    ```bash
-   jq -s 'add' /tmp/gh-aw/org-health/prs/*.json > /tmp/gh-aw/org-health/all_prs.json
+   jq -s 'add' /tmp/gh-aw/org-health/prs/patron.json /tmp/gh-aw/org-health/prs/harvester.json > /tmp/gh-aw/org-health/all_prs.json
    ```
 
-### Phase 4: Process and Analyze Data with Python
+3. **Persist key snapshots** in cache-memory for retries and trend history.
 
-Use Python with pandas to analyze the collected data:
+### Phase 3: Process and Analyze Data with Python
+
+Use Python with pandas to analyze the collected data and compare the two repositories directly.
 
 1. **Create analysis script** at `/tmp/gh-aw/python/analyze_org_health.py`:
 
 ```python
 #!/usr/bin/env python3
 """
-Organization health report data analysis
-Processes issues and PRs data to generate metrics
+Health report data analysis for beatlabs/patron and beatlabs/harvester
+Processes issues and PR data to generate per-repo and cross-repo metrics
 """
-import pandas as pd
 import json
 from datetime import datetime, timedelta
-from collections import Counter
 
-# Load data
+import pandas as pd
+
+REPOS = ["patron", "harvester"]
+
+
+def repo_name(value):
+    if isinstance(value, dict):
+        return value.get("name") or value.get("full_name", "").split("/")[-1]
+    if isinstance(value, str):
+        return value.split("/")[-1]
+    return "unknown"
+
+
+def safe_len(df, expr):
+    return int(len(df[expr])) if not df.empty else 0
+
+
 with open('/tmp/gh-aw/org-health/all_issues.json') as f:
     issues_data = json.load(f)
 
 with open('/tmp/gh-aw/org-health/all_prs.json') as f:
     prs_data = json.load(f)
 
-# Convert to DataFrames
 issues_df = pd.DataFrame(issues_data)
 prs_df = pd.DataFrame(prs_data)
 
-# Calculate date thresholds
 now = datetime.now()
 seven_days_ago = now - timedelta(days=7)
 thirty_days_ago = now - timedelta(days=30)
 
-# Convert date strings to datetime
-issues_df['created_at'] = pd.to_datetime(issues_df['created_at'])
-issues_df['closed_at'] = pd.to_datetime(issues_df['closed_at'])
-prs_df['created_at'] = pd.to_datetime(prs_df['created_at'])
-prs_df['closed_at'] = pd.to_datetime(prs_df['closed_at'])
+for df in (issues_df, prs_df):
+    if df.empty:
+        continue
+    for col in ['created_at', 'updated_at', 'closed_at']:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+    if 'repository' in df.columns:
+        df['repo_name'] = df['repository'].apply(repo_name)
+    else:
+        df['repo_name'] = 'unknown'
 
-# Calculate metrics
-metrics = {
-    'total_open_issues': len(issues_df[issues_df['state'] == 'open']),
-    'total_closed_issues': len(issues_df[issues_df['state'] == 'closed']),
-    'issues_opened_7d': len(issues_df[issues_df['created_at'] >= seven_days_ago]),
-    'issues_closed_7d': len(issues_df[(issues_df['closed_at'] >= seven_days_ago) & (issues_df['state'] == 'closed')]),
-    'issues_opened_30d': len(issues_df[issues_df['created_at'] >= thirty_days_ago]),
-    'issues_closed_30d': len(issues_df[(issues_df['closed_at'] >= thirty_days_ago) & (issues_df['state'] == 'closed')]),
-    'total_open_prs': len(prs_df[prs_df['state'] == 'open']),
-    'total_closed_prs': len(prs_df[prs_df['state'] == 'closed']),
-    'prs_opened_7d': len(prs_df[prs_df['created_at'] >= seven_days_ago]),
-    'prs_closed_7d': len(prs_df[(prs_df['closed_at'] >= seven_days_ago) & (prs_df['state'] == 'closed')]),
-    'prs_opened_30d': len(prs_df[prs_df['created_at'] >= thirty_days_ago]),
-    'prs_closed_30d': len(prs_df[(prs_df['closed_at'] >= thirty_days_ago) & (prs_df['state'] == 'closed')]),
-}
+repo_metrics = {}
 
-# Top active repositories (by recent issues + PRs + comments)
-repo_activity = {}
-for _, issue in issues_df.iterrows():
-    repo = issue.get('repository', {}).get('name', 'unknown')
-    if repo not in repo_activity:
-        repo_activity[repo] = {'issues': 0, 'prs': 0, 'comments': 0}
-    repo_activity[repo]['issues'] += 1
-    repo_activity[repo]['comments'] += issue.get('comments', 0)
+for repo in REPOS:
+    repo_issues = issues_df[issues_df['repo_name'] == repo] if not issues_df.empty else pd.DataFrame()
+    repo_prs = prs_df[prs_df['repo_name'] == repo] if not prs_df.empty else pd.DataFrame()
 
-for _, pr in prs_df.iterrows():
-    repo = pr.get('repository', {}).get('name', 'unknown')
-    if repo not in repo_activity:
-        repo_activity[repo] = {'issues': 0, 'prs': 0, 'comments': 0}
-    repo_activity[repo]['prs'] += 1
-    repo_activity[repo]['comments'] += pr.get('comments', 0)
+    open_issues = repo_issues[repo_issues['state'] == 'open'] if not repo_issues.empty else pd.DataFrame()
+    closed_issues = repo_issues[repo_issues['state'] == 'closed'] if not repo_issues.empty else pd.DataFrame()
+    open_prs = repo_prs[repo_prs['state'] == 'open'] if not repo_prs.empty else pd.DataFrame()
+    closed_prs = repo_prs[repo_prs['state'] == 'closed'] if not repo_prs.empty else pd.DataFrame()
+    merged_prs = repo_prs[repo_prs.get('merged_at').notna()] if not repo_prs.empty and 'merged_at' in repo_prs.columns else pd.DataFrame()
 
-# Calculate activity score
-for repo in repo_activity:
-    repo_activity[repo]['score'] = (
-        repo_activity[repo]['issues'] * 2 +
-        repo_activity[repo]['prs'] * 3 +
-        repo_activity[repo]['comments'] * 0.5
+    stale_issues = open_issues[
+        (open_issues['created_at'] < thirty_days_ago) &
+        (open_issues['updated_at'] < seven_days_ago)
+    ] if not open_issues.empty else pd.DataFrame()
+
+    stale_prs = open_prs[
+        (open_prs['created_at'] < thirty_days_ago) &
+        (open_prs['updated_at'] < seven_days_ago)
+    ] if not open_prs.empty else pd.DataFrame()
+
+    unassigned_issues = open_issues[
+        open_issues['assignees'].apply(lambda x: len(x) == 0 if isinstance(x, list) else True)
+    ] if not open_issues.empty and 'assignees' in open_issues.columns else pd.DataFrame()
+
+    unlabeled_issues = open_issues[
+        open_issues['labels'].apply(lambda x: len(x) == 0 if isinstance(x, list) else True)
+    ] if not open_issues.empty and 'labels' in open_issues.columns else pd.DataFrame()
+
+    activity_score = (
+        len(repo_issues) * 2 +
+        len(repo_prs) * 3 +
+        (repo_issues['comments'].fillna(0).sum() if 'comments' in repo_issues.columns else 0) * 0.5 +
+        (repo_prs['comments'].fillna(0).sum() if 'comments' in repo_prs.columns else 0) * 0.5
     )
 
-top_repos = sorted(repo_activity.items(), key=lambda x: x[1]['score'], reverse=True)[:5]
-
-# Top active authors (by issues opened + PRs opened + comments)
-author_activity = {}
-for _, issue in issues_df.iterrows():
-    author = issue.get('user', {}).get('login', 'unknown')
-    if author not in author_activity:
-        author_activity[author] = {'issues_opened': 0, 'prs_opened': 0, 'comments': 0}
-    author_activity[author]['issues_opened'] += 1
-
-for _, pr in prs_df.iterrows():
-    author = pr.get('user', {}).get('login', 'unknown')
-    if author not in author_activity:
-        author_activity[author] = {'issues_opened': 0, 'prs_opened': 0, 'comments': 0}
-    author_activity[author]['prs_opened'] += 1
-
-# Calculate author activity score
-for author in author_activity:
-    author_activity[author]['score'] = (
-        author_activity[author]['issues_opened'] * 2 +
-        author_activity[author]['prs_opened'] * 3
+    health_score = (
+        max(0, 100 - len(open_issues) * 2 - len(open_prs) * 2 - len(stale_issues) * 5 - len(stale_prs) * 5) +
+        min(20, len(closed_issues[closed_issues['closed_at'] >= thirty_days_ago]) if not closed_issues.empty else 0) +
+        min(20, len(merged_prs[merged_prs['created_at'] >= thirty_days_ago]) if not merged_prs.empty else 0)
     )
 
-top_authors = sorted(author_activity.items(), key=lambda x: x[1]['score'], reverse=True)[:10]
+    repo_metrics[repo] = {
+        'open_issues': len(open_issues),
+        'closed_issues': len(closed_issues),
+        'issues_opened_7d': safe_len(repo_issues, repo_issues['created_at'] >= seven_days_ago) if not repo_issues.empty else 0,
+        'issues_closed_7d': safe_len(closed_issues, closed_issues['closed_at'] >= seven_days_ago) if not closed_issues.empty else 0,
+        'issues_opened_30d': safe_len(repo_issues, repo_issues['created_at'] >= thirty_days_ago) if not repo_issues.empty else 0,
+        'issues_closed_30d': safe_len(closed_issues, closed_issues['closed_at'] >= thirty_days_ago) if not closed_issues.empty else 0,
+        'open_prs': len(open_prs),
+        'closed_prs': len(closed_prs),
+        'merged_prs': len(merged_prs),
+        'prs_opened_7d': safe_len(repo_prs, repo_prs['created_at'] >= seven_days_ago) if not repo_prs.empty else 0,
+        'prs_closed_7d': safe_len(closed_prs, closed_prs['closed_at'] >= seven_days_ago) if not closed_prs.empty else 0,
+        'prs_opened_30d': safe_len(repo_prs, repo_prs['created_at'] >= thirty_days_ago) if not repo_prs.empty else 0,
+        'prs_closed_30d': safe_len(closed_prs, closed_prs['closed_at'] >= thirty_days_ago) if not closed_prs.empty else 0,
+        'stale_issues': len(stale_issues),
+        'stale_prs': len(stale_prs),
+        'unassigned_issues': len(unassigned_issues),
+        'unlabeled_issues': len(unlabeled_issues),
+        'activity_score': round(activity_score, 2),
+        'health_score': round(health_score, 2),
+    }
 
-# High-activity unresolved items (hot issues and PRs)
-recent_open_issues = issues_df[
-    (issues_df['state'] == 'open') &
-    (issues_df['created_at'] >= thirty_days_ago)
-].sort_values('comments', ascending=False).head(10)
 
-recent_open_prs = prs_df[
-    (prs_df['state'] == 'open') &
-    (prs_df['created_at'] >= thirty_days_ago)
-].sort_values('comments', ascending=False).head(10)
+def top_items(df, state_value, limit=10):
+    if df.empty:
+        return []
+    cols = [c for c in ['number', 'title', 'repo_name', 'comments', 'created_at', 'html_url'] if c in df.columns]
+    return df[df['state'] == state_value].sort_values('comments', ascending=False).head(limit)[cols].to_dict('records')
 
-# Stale items (open for 30+ days with no recent activity)
-stale_issues = issues_df[
-    (issues_df['state'] == 'open') &
-    (issues_df['created_at'] < thirty_days_ago) &
-    (issues_df['updated_at'] < seven_days_ago)
-]
 
-stale_prs = prs_df[
-    (prs_df['state'] == 'open') &
-    (prs_df['created_at'] < thirty_days_ago) &
-    (prs_df['updated_at'] < seven_days_ago)
-]
+authors = {}
+for df, key in ((issues_df, 'issues_opened'), (prs_df, 'prs_opened')):
+    if df.empty or 'user' not in df.columns:
+        continue
+    for _, row in df.iterrows():
+        login = (row.get('user') or {}).get('login', 'unknown')
+        authors.setdefault(login, {'issues_opened': 0, 'prs_opened': 0})
+        authors[login][key] += 1
 
-# Unassigned items
-unassigned_issues = issues_df[
-    (issues_df['state'] == 'open') &
-    (issues_df['assignees'].apply(lambda x: len(x) == 0 if isinstance(x, list) else True))
-]
+top_authors = []
+for login, data in authors.items():
+    score = data['issues_opened'] * 2 + data['prs_opened'] * 3
+    top_authors.append({'author': login, **data, 'activity_score': score})
+top_authors = sorted(top_authors, key=lambda x: x['activity_score'], reverse=True)[:10]
 
-# Unlabeled items
-unlabeled_issues = issues_df[
-    (issues_df['state'] == 'open') &
-    (issues_df['labels'].apply(lambda x: len(x) == 0 if isinstance(x, list) else True))
-]
+healthier_repo = max(repo_metrics.items(), key=lambda x: x[1]['health_score'])[0] if repo_metrics else None
+more_active_repo = max(repo_metrics.items(), key=lambda x: x[1]['activity_score'])[0] if repo_metrics else None
 
-# Save results
 results = {
-    'metrics': metrics,
-    'top_repos': [(r, a) for r, a in top_repos],
-    'top_authors': [(a, d) for a, d in top_authors],
-    'hot_issues': recent_open_issues[['number', 'title', 'repository', 'comments', 'created_at']].to_dict('records'),
-    'hot_prs': recent_open_prs[['number', 'title', 'repository', 'comments', 'created_at']].to_dict('records'),
-    'stale_issues_count': len(stale_issues),
-    'stale_prs_count': len(stale_prs),
-    'unassigned_count': len(unassigned_issues),
-    'unlabeled_count': len(unlabeled_issues),
+    'repositories': repo_metrics,
+    'comparison': {
+        'healthier_repo': healthier_repo,
+        'more_active_repo': more_active_repo,
+        'health_score_gap': abs(repo_metrics['patron']['health_score'] - repo_metrics['harvester']['health_score']) if all(r in repo_metrics for r in REPOS) else None,
+        'activity_score_gap': abs(repo_metrics['patron']['activity_score'] - repo_metrics['harvester']['activity_score']) if all(r in repo_metrics for r in REPOS) else None,
+    },
+    'top_authors': top_authors,
+    'hot_issues': top_items(issues_df, 'open'),
+    'hot_prs': top_items(prs_df, 'open'),
 }
 
 with open('/tmp/gh-aw/python/data/health_report_data.json', 'w') as f:
     json.dump(results, f, indent=2, default=str)
 
-print("Analysis complete. Results saved to health_report_data.json")
+print('Analysis complete. Results saved to health_report_data.json')
 ```
 
 2. **Run the analysis**:
@@ -307,136 +297,147 @@ print("Analysis complete. Results saved to health_report_data.json")
    python3 /tmp/gh-aw/python/analyze_org_health.py
    ```
 
-### Phase 5: Generate Markdown Report
+3. **Generate trend charts** for 7-day and 30-day issue / PR activity and save them as assets. Persist trend inputs in cache-memory so later runs can compare movement over time.
+
+### Phase 4: Generate Markdown Report
 
 Create a comprehensive markdown report with the following sections:
 
 1. **Executive Summary**
-   - Brief overview of org health
-   - Key metrics at a glance
-   - Notable trends
+   - Brief summary of current health across `patron` and `harvester`
+   - Which repository is healthier right now
+   - Which repository is currently more active
 
-2. **Volume Metrics**
-   - Table showing total open/closed issues and PRs
-   - Trends for last 7 and 30 days
+2. **Per-Repository Volume Metrics**
+   - Side-by-side table for `patron` and `harvester`
+   - Open/closed issues and PRs
+   - 7-day and 30-day trends
 
-3. **Top 5 Most Active Repositories**
-   - Table with repo name, recent issues, PRs, and comments
-   - Commentary on what makes these repos active
+3. **Cross-Repository Comparison**
+   - Health score comparison
+   - Activity score comparison
+   - Backlog pressure comparison
+   - Responsiveness signals from closure / merge activity
 
-4. **Top 10 Most Active Authors**
-   - Table with username, issues opened, PRs opened
-   - Recognition of top contributors
+4. **Top Active Authors**
+   - Table with username, issues opened, PRs opened, activity score
 
 5. **High-Activity Items Needing Attention**
-   - Hot issues (high comment count, recently created)
-   - Hot PRs (high activity, needs review)
+   - Hot issues across `patron` and `harvester`
+   - Hot PRs across `patron` and `harvester`
 
-6. **Items Needing Attention**
-   - Stale issues and PRs (old, inactive)
-   - Unassigned issues count
-   - Unlabeled issues count
+6. **Attention Areas by Repository**
+   - Stale issues and PRs
+   - Unassigned issues
+   - Unlabeled issues
 
 7. **Commentary and Recommendations**
-   - Brief analysis of what the metrics mean
-   - Suggestions for maintainers on where to focus
+   - Explain what the comparison means
+   - Call out where maintainers should focus first in each repository
 
-### Phase 6: Create Discussion Report
+### Phase 5: Create Issue Report
 
-Use the `create discussion` safe-output to publish the report:
+Use the `create issue` safe-output to publish the report:
 
 ```markdown
-# Organization Health Report - [Date]
+# Patron vs Harvester Health Report - [Date]
 
 [Executive Summary]
 
-## 📊 Volume Metrics
+## 📊 Repository Summary
 
-### Overall Status
+| Repository | Health Score | Activity Score | Open Issues | Open PRs | Stale Issues | Stale PRs |
+|------------|--------------|----------------|-------------|----------|--------------|-----------|
+| patron | X | X | X | X | X | X |
+| harvester | X | X | X | X | X | X |
 
-| Metric | Count |
-|--------|-------|
-| Total Open Issues | X |
-| Total Closed Issues | X |
-| Total Open PRs | X |
-| Total Closed PRs | X |
+## 📈 Recent Activity
 
-### Recent Activity (7 Days)
+### Last 7 Days
 
-| Metric | Count |
-|--------|-------|
-| Issues Opened | X |
-| Issues Closed | X |
-| PRs Opened | X |
-| PRs Closed | X |
+| Repository | Issues Opened | Issues Closed | PRs Opened | PRs Closed |
+|------------|---------------|---------------|------------|------------|
+| patron | X | X | X | X |
+| harvester | X | X | X | X |
 
-### Recent Activity (30 Days)
+### Last 30 Days
 
-| Metric | Count |
-|--------|-------|
-| Issues Opened | X |
-| Issues Closed | X |
-| PRs Opened | X |
-| PRs Closed | X |
+| Repository | Issues Opened | Issues Closed | PRs Opened | PRs Closed |
+|------------|---------------|---------------|------------|------------|
+| patron | X | X | X | X |
+| harvester | X | X | X | X |
 
-## 🏆 Top 5 Most Active Repositories
+## ⚖️ Cross-Repository Comparison
 
-| Repository | Recent Issues | Recent PRs | Comments | Activity Score |
-|------------|---------------|------------|----------|----------------|
-| repo1 | X | X | X | X |
-| repo2 | X | X | X | X |
-...
+- **Healthier repository right now**: X
+- **More active repository right now**: X
+- **Health score gap**: X
+- **Activity score gap**: X
+- **Backlog pressure**: [Which repository has more unresolved load and why]
+- **Responsiveness**: [Which repository is closing issues / merging PRs faster based on the data]
 
-## 👥 Top 10 Most Active Authors
+## 👥 Top Active Authors
 
 | Author | Issues Opened | PRs Opened | Activity Score |
 |--------|---------------|------------|----------------|
 | user1 | X | X | X |
 | user2 | X | X | X |
-...
 
-## 🔥 High-Activity Unresolved Items
+## 🔥 High-Activity Items Needing Attention
 
-### Hot Issues (Need Attention)
+### Hot Issues
 
 | Issue | Repository | Comments | Age (days) | Link |
 |-------|------------|----------|------------|------|
-| #123: Title | repo | X | X | [View](#) |
-...
+| #123: Title | patron | X | X | [View](#) |
 
-### Hot PRs (Need Review)
+### Hot PRs
 
 | PR | Repository | Comments | Age (days) | Link |
 |----|------------|----------|------------|------|
-| #456: Title | repo | X | X | [View](#) |
-...
+| #456: Title | harvester | X | X | [View](#) |
 
-## ⚠️ Items Needing Attention
+## ⚠️ Attention Areas by Repository
 
-- **Stale Issues**: X issues open for 30+ days with no recent activity
-- **Stale PRs**: X PRs open for 30+ days with no recent activity
-- **Unassigned Issues**: X open issues without assignees
-- **Unlabeled Issues**: X open issues without labels
+### patron
+
+- **Stale Issues**: X
+- **Stale PRs**: X
+- **Unassigned Issues**: X
+- **Unlabeled Issues**: X
+
+### harvester
+
+- **Stale Issues**: X
+- **Stale PRs**: X
+- **Unassigned Issues**: X
+- **Unlabeled Issues**: X
 
 ## 💡 Commentary and Recommendations
 
-[Analysis of the metrics and suggestions for where maintainers should focus their attention]
+- **patron**: [Focused recommendation]
+- **harvester**: [Focused recommendation]
+- **Cross-repo**: [Recommendation based on comparative health and activity]
+
+![7-day trends](attachment://org-health-7d.png)
+![30-day trends](attachment://org-health-30d.png)
 
 <details>
 <summary><b>Full Data and Methodology</b></summary>
 
 ## Data Collection
 
+- **Repositories Analyzed**: `beatlabs/patron`, `beatlabs/harvester`
 - **Date Range**: [dates]
-- **Repositories Analyzed**: X public, non-archived repositories
-- **Issues Analyzed**: X issues
-- **PRs Analyzed**: X pull requests
+- **Issues Analyzed**: X
+- **PRs Analyzed**: X
 
 ## Methodology
 
 - Data collected using GitHub API via MCP server
-- Analyzed using Python pandas for efficient data processing
-- Activity scores calculated using weighted formula
+- Analysis performed with Python pandas
+- Trend charts generated with Python and uploaded as report assets
+- Trend snapshots persisted via cache-memory for continuity across runs
 - Delays added between API calls to respect rate limits
 
 </details>
@@ -447,22 +448,22 @@ Use the `create discussion` safe-output to publish the report:
 ### Rate Limiting and Throttling
 
 **CRITICAL**: Add delays between API calls to avoid rate limiting:
-- **2-3 seconds** between repository pagination
-- **5 seconds** between individual repository queries
+- **5 seconds** between `patron` and `harvester` issue queries
+- **5 seconds** between `patron` and `harvester` PR queries
 - If you encounter rate limit errors, increase delays and retry
 
 Use bash commands to add delays:
 ```bash
-sleep 3  # Wait 3 seconds
+sleep 5
 ```
 
 ### Data Processing Strategy
 
-For large organizations (100+ repositories):
-1. Use organization-wide search queries instead of per-repo queries
-2. Focus on recent activity (last 30 days) to reduce data volume
-3. Sample repositories if needed (e.g., top 50 by stars or activity)
-4. Cache intermediate results for retry capability
+Because the repository set is fixed to two repositories:
+1. Query both repositories directly instead of performing discovery
+2. Preserve raw JSON per repository before aggregation
+3. Cache intermediate results and trend snapshots for retry capability
+4. Prefer clear side-by-side comparisons over aggregated totals without attribution
 
 ### Error Handling
 
@@ -477,17 +478,19 @@ For large organizations (100+ repositories):
 - Include links to actual issues and PRs
 - Add context and commentary, not just raw numbers
 - Highlight actionable insights
+- Make the comparison between `patron` and `harvester` explicit
 - Use the collapsible details section for methodology
 
 ## Success Criteria
 
 A successful health report:
-- ✅ Discovers all public, non-archived repositories in the org
-- ✅ Collects issues and PRs data with appropriate rate limiting
+- ✅ Analyzes exactly `beatlabs/patron` and `beatlabs/harvester`
+- ✅ Collects issues and PR data with appropriate rate limiting
 - ✅ Processes data using Python pandas
-- ✅ Generates comprehensive metrics
-- ✅ Creates readable markdown report with tables
-- ✅ Publishes report as GitHub Discussion
+- ✅ Generates per-repo metrics and cross-repo comparison metrics
+- ✅ Produces trending charts and uploads them as assets
+- ✅ Uses cache-memory for retry safety and trend continuity
+- ✅ Creates a readable markdown issue with tables and recommendations
 - ✅ Completes within 60 minute timeout
 
-Begin the organization health report analysis now. Follow the phases in order, add appropriate delays, and generate a comprehensive report for maintainers.
+Begin the repository health report analysis now. Follow the phases in order, add appropriate delays, and generate a comparative report for `beatlabs/patron` and `beatlabs/harvester`.
