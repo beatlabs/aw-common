@@ -28,6 +28,9 @@ Shared prompt fragments live in `shared/` and are pulled in via the `imports:` f
 | `shared/jqschema.md` | `jq` utilities and schema inference tooling |
 | `shared/reporting.md` | Report formatting guidelines (header levels, progressive disclosure) |
 | `shared/trending-charts-simple.md` | Python chart environment with cache-memory integration for trending data |
+| `shared/go-ci.md` | Go CI context: Taskfile targets, linting config, test commands, network allowlist for Go module proxies |
+| `shared/go-security.md` | Go security scanning guidance: govulncheck, gosec, dependency audit, CVE reporting |
+| `shared/issue-triage-go.md` | Go-specific issue triage taxonomy: component classification, priority rules, label scheme |
 
 ## Usage
 
