@@ -1,91 +1,86 @@
 ---
-description: Monthly workflow that identifies stale repositories in an organization and creates detailed activity reports
-name: Stale Repository Identifier
 on:
+  schedule: 15 9 1 * *
   workflow_dispatch:
     inputs:
       organization:
-        description: "GitHub organization to scan for stale repositories"
+        default: github
+        description: GitHub organization to scan for stale repositories
         required: true
         type: string
-        default: github
-  schedule: "0 9 1 * *"  # Converted from 'monthly on 1 at 02:03' (adjust time as needed)
-
 permissions:
+  actions: read
   contents: read
   issues: read
   pull-requests: read
-  actions: read
-
-engine: copilot
-strict: true
-timeout-minutes: 45
-
-imports:
-  - shared/mood.md
-  - shared/python-dataviz.md
-  - shared/jqschema.md
-  - shared/trending-charts-simple.md
-
 network:
   allowed:
-    - defaults
-    - github
-
+  - defaults
+  - github
+imports:
+- github/gh-aw/.github/workflows/shared/github-guard-policy.md@d1c210e8581deb8ab71d26a678876a3e45065465
+- shared/python-dataviz.md
+- shared/jqschema.md
+- shared/trending-charts-simple.md
+- shared/reporting.md
 safe-outputs:
   create-issue:
     expires: 2d
-    title-prefix: "[Stale Repository] "
-    labels: [stale-repository, automated-analysis, cookie]
-    max: 10
     group: true
-  upload-asset:
+    labels:
+    - stale-repository
+    - automated-analysis
+    - cookie
+    max: 10
+    title-prefix: "[Stale Repository] "
   messages:
-    footer: "> 🔍 *Analysis by [{workflow_name}]({run_url})*"
-    run-started: "🔍 Stale Repository Identifier starting! [{workflow_name}]({run_url}) is analyzing repository activity..."
-    run-success: "✅ Analysis complete! [{workflow_name}]({run_url}) has finished analyzing stale repositories."
-    run-failure: "⚠️ Analysis interrupted! [{workflow_name}]({run_url}) {status}."
-
+    footer: "> 🔍 *Analysis by [{workflow_name}]({run_url})*{effective_tokens_suffix}{history_link}"
+    run-failure: ⚠️ Analysis interrupted! [{workflow_name}]({run_url}) {status}.
+    run-started: 🔍 Stale Repository Identifier starting! [{workflow_name}]({run_url}) is analyzing repository activity...
+    run-success: ✅ Analysis complete! [{workflow_name}]({run_url}) has finished analyzing stale repositories.
+  upload-asset: null
+steps:
+- env:
+    ADDITIONAL_METRICS: release,pr
+    EXEMPT_TOPICS: keep,template
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    INACTIVE_DAYS: 365
+    ORGANIZATION: ${{ env.ORGANIZATION }}
+  id: stale-repos
+  name: Run stale-repos tool
+  uses: github/stale-repos@v9.0.8
+- env:
+    INACTIVE_REPOS: ${{ steps.stale-repos.outputs.inactiveRepos }}
+  name: Save stale repos output
+  run: |
+    mkdir -p /tmp/stale-repos-data
+    echo "$INACTIVE_REPOS" > /tmp/stale-repos-data/inactive-repos.json
+    echo "Stale repositories data saved"
+    echo "Total stale repositories: $(jq 'length' /tmp/stale-repos-data/inactive-repos.json)"
+concurrency:
+  job-discriminator: ${{ inputs.organization || github.run_id }}
+description: Monthly workflow that identifies stale repositories in an organization and creates detailed activity reports
+engine: copilot
+env:
+  ORGANIZATION: ${{ github.event.inputs.organization || 'github' }}
+name: Stale Repository Identifier
+source: github/gh-aw/.github/workflows/stale-repo-identifier.md@d1c210e8581deb8ab71d26a678876a3e45065465
+strict: true
+timeout-minutes: 45
 tools:
-  github:
-    read-only: true
-    lockdown: true
-    toolsets:
-      - repos
-      - issues
-      - pull_requests
+  bash:
+  - "*"
   cache-memory:
     key: stale-repos-analysis-${{ github.workflow }}-${{ github.run_id }}
-  bash:
-    - "*"
-  edit:
-
-env:
-  # For scheduled runs, set a default organization or use repository variables
-  ORGANIZATION: ${{ github.event.inputs.organization || 'github' }}
-
-steps:
-  - name: Run stale_repos tool
-    id: stale-repos
-    uses: github/stale-repos@v3.0.2
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      ORGANIZATION: ${{ env.ORGANIZATION }}
-      EXEMPT_TOPICS: "keep,template"
-      INACTIVE_DAYS: 365
-      ADDITIONAL_METRICS: "release,pr"
-
-  - name: Save stale repos output
-    env:
-      INACTIVE_REPOS: ${{ steps.stale-repos.outputs.inactiveRepos }}
-    run: |
-      mkdir -p /tmp/stale-repos-data
-      echo "$INACTIVE_REPOS" > /tmp/stale-repos-data/inactive-repos.json
-      echo "Stale repositories data saved"
-      echo "Total stale repositories: $(jq 'length' /tmp/stale-repos-data/inactive-repos.json)"
-source: github/gh-aw/.github/workflows/stale-repo-identifier.md@852cb06ad52958b402ed982b69957ffc57ca0619
+  edit: null
+  github:
+    min-integrity: approved
+    read-only: true
+    toolsets:
+    - repos
+    - issues
+    - pull_requests
 ---
-
 # Stale Repository Identifier 🔍
 
 You are an expert repository analyst that deeply investigates potentially stale repositories to determine if they are truly inactive and produces comprehensive activity reports.
@@ -357,3 +352,9 @@ To avoid GitHub API rate limits:
 - Create GitHub issues for repositories needing attention (max 10)
 - Print summary statistics to stdout
 - Be clear and actionable in recommendations
+
+**Important**: If no action is needed after completing your analysis, you **MUST** call the `noop` safe-output tool with a brief explanation. Failing to call any safe-output tool is the most common cause of safe-output workflow failures.
+
+```json
+{"noop": {"message": "No action needed: [brief explanation of what was analyzed and why]"}}
+```

@@ -1,49 +1,46 @@
 ---
-name: Ubuntu Actions Image Analyzer
-description: Weekly analysis of the default Ubuntu Actions runner image and guidance for creating Docker mimics
 on:
   schedule: 0 0 1 * *
-  workflow_dispatch:
-  skip-if-match: 'is:pr is:open in:title "[ubuntu-image]"'
-
+  skip-if-match: is:pr is:open in:title "[ubuntu-image]"
+  workflow_dispatch: null
 permissions:
-  contents: read
   actions: read
+  contents: read
   issues: read
   pull-requests: read
-
-tracker-id: ubuntu-image-analyzer
-engine: copilot
-strict: true
-
 network:
   allowed:
-    - defaults
-    - github
-
-tools:
-  github:
-    toolsets: [default, actions]
-  edit:
-  bash:
-    - "find .github/workflows -name '*.lock.yml' -type f"
-    - "cat research/ubuntulatest.md"
-    - "git"
-
+  - defaults
+  - github
+imports:
+- github/gh-aw/.github/workflows/shared/activation-app.md@d1c210e8581deb8ab71d26a678876a3e45065465
 safe-outputs:
   create-pull-request:
-    expires: 2d
-    title-prefix: "[ubuntu-image] "
-    labels: [documentation, automation, infrastructure]
     draft: false
-
+    expires: 2d
+    labels:
+    - documentation
+    - automation
+    - infrastructure
+    title-prefix: "[ubuntu-image] "
+description: Weekly analysis of the default Ubuntu Actions runner image and guidance for creating Docker mimics
+engine: copilot
+name: Ubuntu Actions Image Analyzer
+source: github/gh-aw/.github/workflows/ubuntu-image-analyzer.md@d1c210e8581deb8ab71d26a678876a3e45065465
+strict: true
 timeout-minutes: 30
-
-imports:
-  - shared/mood.md
-source: github/gh-aw/.github/workflows/ubuntu-image-analyzer.md@852cb06ad52958b402ed982b69957ffc57ca0619
+tools:
+  bash:
+  - find .github/workflows -name '*.lock.yml' -type f
+  - cat research/ubuntulatest.md
+  - git
+  edit: null
+  github:
+    toolsets:
+    - default
+    - actions
+tracker-id: ubuntu-image-analyzer
 ---
-
 # Ubuntu Actions Image Analyzer
 
 You are an AI agent that analyzes the default Ubuntu Actions runner image and maintains documentation about its contents and how to create Docker images that mimic it.
@@ -140,7 +137,7 @@ Then use the `get_file_contents` tool:
 # Example MCP tool usage
 get_file_contents(
   owner="actions",
-  repo="runner-images", 
+  repo="runner-images",
   ref="ubuntu24",
   path="images/ubuntu/Ubuntu2404-Readme.md"
 )
@@ -489,3 +486,9 @@ If you cannot find the "Included Software" URL in logs:
    - Find the "Included Software" line with the URL
 
 Good luck! Your analysis helps developers understand and replicate the GitHub Actions runner environment.
+
+**Important**: If no action is needed after completing your analysis, you **MUST** call the `noop` safe-output tool with a brief explanation. Failing to call any safe-output tool is the most common cause of safe-output workflow failures.
+
+```json
+{"noop": {"message": "No action needed: [brief explanation of what was analyzed and why]"}}
+```
