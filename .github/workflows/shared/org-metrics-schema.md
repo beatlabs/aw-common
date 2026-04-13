@@ -13,7 +13,7 @@ Downstream consumers such as the audit workflow and weekly summary depend on the
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `collection_timestamp` | `string` | Yes | ISO 8601 timestamp for when collection completed. |
-| `repos` | `array<object>` | Yes | Per-repository daily metrics. Current producers emit one entry for `beatlabs/patron` and one entry for `beatlabs/harvester`. |
+| `repos` | `array of objects` | Yes | Per-repository daily metrics. Current producers emit one entry for `beatlabs/patron` and one entry for `beatlabs/harvester`. |
 | `cross_repo_summary` | `object` | Yes | Aggregated summary across all repositories in `repos`. |
 
 ## `repos[]` object
