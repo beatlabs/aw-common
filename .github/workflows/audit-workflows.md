@@ -8,8 +8,11 @@ permissions:
   contents: read
   actions: read
 tools:
-  - github[actions, repos]
-  - bash
+  github:
+    lockdown: true
+    toolsets: [actions, repos]
+  bash:
+    - "*"
 imports:
   - shared/mood.md
   - shared/reporting.md
