@@ -1,0 +1,13 @@
+{
+  "ignores": [
+    ".sisyphus/**",
+    "*-inventory.md",
+    "*-guidance.md",
+    "*-investigation.md",
+    "*-brief.md",
+    "*-matrix.md",
+    "*-cheat-sheet.md",
+    "INDEX-*.md",
+    "README-*-*.md"
+  ]
+}

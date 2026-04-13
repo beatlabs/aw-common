@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: gh aw compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install gh-aw
+        uses: github/gh-aw-actions/setup-cli@cde65c546c2b0f6d3f3a9492a04e6687887c4fe8 # v0.67.0
+        with:
+          version: v0.67.0
+
+      - name: Compile workflows
+        run: gh aw compile --validate --verbose
+
+  markdownlint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@db4f21d957a955f41c069cdc59b54298a88575a7 # v19.1.0
+        with:
+          globs: |
+            **/*.md
+            !**/*.lock.yml
