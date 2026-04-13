@@ -18,6 +18,7 @@ Shared prompt fragments live in `shared/` and are pulled in via the `imports:` f
 | `org-health-report` | Monthly (1st) | Analyzes issues and PRs for patron and harvester, produces comparative health metrics and an issue report |
 | `metrics-collector` | Daily (1am UTC) | Collects CI, issue, PR, and dependency metrics for patron and harvester, produces JSON + charts |
 | `audit-workflows` | Weekly (Mon 2am UTC) | Audits agentic workflow health across aw-common, patron, and harvester — classifies as healthy/degraded/broken |
+| `weekly-org-summary` | Weekly (Mon 9am UTC) | Concise weekly control-plane summary for patron and harvester — activity, CI health, agentic workflow effectiveness |
 | `stale-repo-identifier` | Monthly (1st) | Scans org repositories for staleness signals and files issues for inactive repos |
 | `ubuntu-image-analyzer` | Monthly (1st) | Analyzes the default Ubuntu Actions runner image and maintains Docker mimic documentation |
 
