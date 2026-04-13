@@ -9,12 +9,16 @@ permissions:
   actions: read
   issues: read
   pull-requests: read
-tools: github[repos, issues, pull_requests, actions, search], bash, cache-memory
+tools:
+  github:
+    toolsets: [repos, issues, pull_requests, actions, search]
+  bash:
+    - "*"
+  cache-memory: true
 safe-outputs:
   upload-asset:
     max: 10
-  messages:
-    max: 1
+  messages: {}
 imports:
   - shared/mood.md
   - shared/python-dataviz.md
