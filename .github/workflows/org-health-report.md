@@ -12,7 +12,7 @@ permissions:
 engine: copilot
 tools:
   github:
-    lockdown: true
+    min-integrity: approved
     toolsets:
       - repos
       - issues
@@ -31,18 +31,16 @@ safe-outputs:
     max: 5
 timeout-minutes: 60
 strict: true
-features:
-  dangerous-permissions-write: true
 network:
   allowed:
     - defaults
     - python
 imports:
-  - shared/mood.md
+  - github/gh-aw/.github/workflows/shared/github-guard-policy.md@d1c210e8581deb8ab71d26a678876a3e45065465
   - shared/python-dataviz.md
   - shared/jqschema.md
   - shared/reporting.md
-source: github/gh-aw/.github/workflows/org-health-report.md@852cb06ad52958b402ed982b69957ffc57ca0619
+source: github/gh-aw/.github/workflows/org-health-report.md@d1c210e8581deb8ab71d26a678876a3e45065465
 ---
 
 # Repository Health Report
@@ -340,11 +338,11 @@ Create a comprehensive markdown report with the following sections:
 Use the `create issue` safe-output to publish the report:
 
 ```markdown
-# Patron vs Harvester Health Report - [Date]
+### 🏥 Patron vs Harvester Health Report - [Date]
 
 [Executive Summary]
 
-## 📊 Repository Summary
+### 📊 Repository Summary
 
 | Repository | Health Score | Activity Score | Open Issues | Open PRs | Stale Issues | Stale PRs |
 |------------|--------------|----------------|-------------|----------|--------------|-----------|
@@ -353,14 +351,14 @@ Use the `create issue` safe-output to publish the report:
 
 ## 📈 Recent Activity
 
-### Last 7 Days
+#### Recent Activity (7 Days)
 
 | Repository | Issues Opened | Issues Closed | PRs Opened | PRs Closed |
 |------------|---------------|---------------|------------|------------|
 | patron | X | X | X | X |
 | harvester | X | X | X | X |
 
-### Last 30 Days
+#### Recent Activity (30 Days)
 
 | Repository | Issues Opened | Issues Closed | PRs Opened | PRs Closed |
 |------------|---------------|---------------|------------|------------|
@@ -376,22 +374,25 @@ Use the `create issue` safe-output to publish the report:
 - **Backlog pressure**: [Which repository has more unresolved load and why]
 - **Responsiveness**: [Which repository is closing issues / merging PRs faster based on the data]
 
-## 👥 Top Active Authors
+<details>
+<summary>Top 10 Most Active Authors</summary>
 
 | Author | Issues Opened | PRs Opened | Activity Score |
 |--------|---------------|------------|----------------|
 | user1 | X | X | X |
 | user2 | X | X | X |
 
-## 🔥 High-Activity Items Needing Attention
+</details>
 
-### Hot Issues
+### 🔥 High-Activity Items Needing Attention
+
+#### Hot Issues (Need Attention)
 
 | Issue | Repository | Comments | Age (days) | Link |
 |-------|------------|----------|------------|------|
 | #123: Title | patron | X | X | [View](#) |
 
-### Hot PRs
+#### Hot PRs (Need Review)
 
 | PR | Repository | Comments | Age (days) | Link |
 |----|------------|----------|------------|------|
@@ -413,7 +414,7 @@ Use the `create issue` safe-output to publish the report:
 - **Unassigned Issues**: X
 - **Unlabeled Issues**: X
 
-## 💡 Commentary and Recommendations
+### 💡 Commentary and Recommendations
 
 - **patron**: [Focused recommendation]
 - **harvester**: [Focused recommendation]
@@ -423,16 +424,16 @@ Use the `create issue` safe-output to publish the report:
 ![30-day trends](attachment://org-health-30d.png)
 
 <details>
-<summary><b>Full Data and Methodology</b></summary>
+<summary>Full Data and Methodology</summary>
 
-## Data Collection
+#### Data Collection
 
 - **Repositories Analyzed**: `beatlabs/patron`, `beatlabs/harvester`
 - **Date Range**: [dates]
 - **Issues Analyzed**: X
 - **PRs Analyzed**: X
 
-## Methodology
+#### Methodology
 
 - Data collected using GitHub API via MCP server
 - Analysis performed with Python pandas
@@ -494,3 +495,9 @@ A successful health report:
 - ✅ Completes within 60 minute timeout
 
 Begin the repository health report analysis now. Follow the phases in order, add appropriate delays, and generate a comparative report for `beatlabs/patron` and `beatlabs/harvester`.
+
+**Important**: If no action is needed after completing your analysis, you **MUST** call the `noop` safe-output tool with a brief explanation. Failing to call any safe-output tool is the most common cause of safe-output workflow failures.
+
+```json
+{"noop": {"message": "No action needed: [brief explanation of what was analyzed and why]"}}
+```
