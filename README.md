@@ -21,6 +21,7 @@ Shared prompt fragments live in `shared/` and are pulled in via the `imports:` f
 | `weekly-org-summary` | Weekly (Mon 9am UTC) | Concise weekly control-plane summary for patron and harvester — activity, CI health, agentic workflow effectiveness |
 | `stale-repo-identifier` | Monthly (1st) | Scans org repositories for staleness signals and files issues for inactive repos |
 | `ubuntu-image-analyzer` | Monthly (1st) | Analyzes the default Ubuntu Actions runner image and maintains Docker mimic documentation |
+| `bot-pr-automerge` | Every 4h | Reviews, approves, and auto-merges bot PRs (Dependabot, gh-aw) across patron, harvester, and aw-common |
 
 ## Shared Imports
 

@@ -18,9 +18,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install gh-aw
-        uses: github/gh-aw-actions/setup-cli@cde65c546c2b0f6d3f3a9492a04e6687887c4fe8 # v0.67.0
+        uses: github/gh-aw-actions/setup-cli@ba90f2186d7ad780ec640f364005fa24e797b360 # v0.68.3
         with:
-          version: v0.67.0
+          version: v0.68.3
 
       - name: Compile workflows
         run: gh aw compile --validate --verbose
